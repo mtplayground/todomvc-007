@@ -69,3 +69,26 @@ pub async fn delete_todo(id: i64) -> Result<(), ServerFnError> {
         .map_err(db_err)?;
     Ok(())
 }
+
+#[server(ToggleAll, "/api")]
+pub async fn toggle_all(completed: bool) -> Result<(), ServerFnError> {
+    use sqlx::SqlitePool;
+    let pool = expect_context::<SqlitePool>();
+    sqlx::query("UPDATE todos SET completed = ?")
+        .bind(completed)
+        .execute(&pool)
+        .await
+        .map_err(db_err)?;
+    Ok(())
+}
+
+#[server(ClearCompleted, "/api")]
+pub async fn clear_completed() -> Result<(), ServerFnError> {
+    use sqlx::SqlitePool;
+    let pool = expect_context::<SqlitePool>();
+    sqlx::query("DELETE FROM todos WHERE completed = TRUE")
+        .execute(&pool)
+        .await
+        .map_err(db_err)?;
+    Ok(())
+}
