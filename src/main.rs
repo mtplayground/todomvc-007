@@ -1,17 +1,20 @@
 #[cfg(feature = "ssr")]
 #[tokio::main]
 async fn main() {
-    use axum::routing::post;
-    use axum::Router;
+    use axum::{routing::post, Router};
     use leptos::*;
-    use leptos_axum::{generate_route_list, handle_server_fns, render_app_to_stream, LeptosRoutes};
+    use leptos_axum::{
+        generate_route_list, handle_server_fns_with_context, render_app_to_stream_with_context,
+        LeptosRoutes,
+    };
+    use sqlx::SqlitePool;
     use tower_http::services::ServeDir;
     use todomvc_007::app::App;
     use todomvc_007::db::{get_db, run_migrations};
 
     dotenvy::dotenv().ok();
 
-    // Initialize database pool
+    // Initialize database pool and run migrations
     let pool = get_db().await.expect("Failed to connect to database");
     run_migrations(&pool).await.expect("Failed to run migrations");
 
@@ -21,26 +24,50 @@ async fn main() {
     let routes = generate_route_list(App);
     let site_root = leptos_options.site_root.clone();
 
+    let pool_clone = pool.clone();
+    let pool_clone2 = pool.clone();
+
     let app = Router::new()
-        .route("/api/*fn_name", post(handle_server_fns))
+        // Server function handler with database context
+        .route(
+            "/api/*fn_name",
+            post({
+                let pool = pool_clone.clone();
+                move |req| {
+                    let pool = pool.clone();
+                    handle_server_fns_with_context(
+                        move || {
+                            provide_context::<SqlitePool>(pool.clone());
+                        },
+                        req,
+                    )
+                }
+            }),
+        )
+        // Static file serving for compiled WASM/JS
         .nest_service("/pkg", ServeDir::new(format!("{}/pkg", site_root)))
+        // Static assets (CSS, images, etc.)
         .nest_service("/assets", ServeDir::new("public"))
+        // Leptos routes with database context
         .leptos_routes_with_context(
             &leptos_options,
             routes,
             {
-                let pool = pool.clone();
+                let pool = pool_clone2.clone();
                 move || {
-                    leptos::provide_context(pool.clone());
+                    provide_context::<SqlitePool>(pool.clone());
                 }
             },
             || view! { <App/> },
         )
-        .fallback(render_app_to_stream(
+        // Fallback SSR renderer
+        .fallback(render_app_to_stream_with_context(
             leptos_options.clone(),
+            move || {
+                provide_context::<SqlitePool>(pool.clone());
+            },
             || view! { <App/> },
         ))
-        .layer(axum::Extension(pool))
         .with_state(leptos_options);
 
     let listener = tokio::net::TcpListener::bind(&addr)
