@@ -10,22 +10,39 @@ pub fn App() -> impl IntoView {
         <Stylesheet id="leptos" href="/pkg/todomvc-007.css"/>
         <Title text="TodoMVC"/>
         <Router>
-            <main>
-                <Routes>
-                    <Route path="/" view=HomePage/>
-                </Routes>
-            </main>
+            <Routes>
+                <Route path="/" view=TodoPage/>
+                <Route path="/:filter" view=TodoPage/>
+            </Routes>
         </Router>
     }
 }
 
 #[component]
-fn HomePage() -> impl IntoView {
+pub fn TodoPage() -> impl IntoView {
     view! {
         <section class="todoapp">
             <header class="header">
                 <h1>"todos"</h1>
+                <input
+                    class="new-todo"
+                    placeholder="What needs to be done?"
+                    autofocus=true
+                />
             </header>
+            <section class="main">
+                <ul class="todo-list">
+                </ul>
+            </section>
+            <footer class="footer">
+                <span class="todo-count">
+                    <strong>"0"</strong>
+                    " items left"
+                </span>
+            </footer>
         </section>
+        <footer class="info">
+            <p>"Double-click to edit a todo"</p>
+        </footer>
     }
 }
